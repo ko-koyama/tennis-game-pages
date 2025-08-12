@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>テニスゲーム</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #2c3e50;
+            color: white;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        #gameContainer {
+            border: 2px solid white;
+            position: relative;
+            background-color: #27ae60;
+        }
+
+        #gameCanvas {
+            display: block;
+            background-color: #27ae60;
+        }
+
+        #scoreBoard {
+            display: flex;
+            justify-content: space-between;
+            width: 800px;
+            margin: 20px 0;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        #controls {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .control-info {
+            margin: 5px 0;
+            font-size: 16px;
+        }
+
+        #startBtn {
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        #startBtn:hover {
+            background-color: #c0392b;
+        }
+    </style>
+</head>
+<body>
+    <h1>テニスゲーム</h1>
+    
+    <div id="scoreBoard">
+        <div>プレイヤー: <span id="playerScore">0</span></div>
+        <div>CPU: <span id="cpuScore">0</span></div>
+    </div>
+    
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+    </div>
+    
+    <div id="controls">
+        <div class="control-info">↑↓ キーでパドルを操作</div>
+        <div class="control-info">Spaceキーでボールをサーブ</div>
+        <button id="startBtn" onclick="startGame()">ゲーム開始</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let gameRunning = false;
+        let gameStarted = false;
+        
+        const game = {
+            ball: {
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                radius: 8,
+                velocityX: 0,
+                velocityY: 0,
+                speed: 5
+            },
+            player: {
+                x: 20,
+                y: canvas.height / 2 - 50,
+                width: 10,
+                height: 100,
+                speed: 7
+            },
+            cpu: {
+                x: canvas.width - 30,
+                y: canvas.height / 2 - 50,
+                width: 10,
+                height: 100,
+                speed: 4
+            },
+            score: {
+                player: 0,
+                cpu: 0
+            }
+        };
+
+        const keys = {
+            up: false,
+            down: false,
+            space: false
+        };
+
+        function drawRect(x, y, width, height, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, width, height);
+        }
+
+        function drawCircle(x, y, radius, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawNet() {
+            for (let i = 0; i <= canvas.height; i += 20) {
+                drawRect(canvas.width / 2 - 1, i, 2, 10, 'white');
+            }
+        }
+
+        function resetBall() {
+            game.ball.x = canvas.width / 2;
+            game.ball.y = canvas.height / 2;
+            game.ball.velocityX = 0;
+            game.ball.velocityY = 0;
+        }
+
+        function serveBall() {
+            if (game.ball.velocityX === 0 && game.ball.velocityY === 0) {
+                const angle = (Math.random() - 0.5) * Math.PI / 3;
+                game.ball.velocityX = Math.cos(angle) * game.ball.speed * (Math.random() > 0.5 ? 1 : -1);
+                game.ball.velocityY = Math.sin(angle) * game.ball.speed;
+            }
+        }
+
+        function updateBall() {
+            if (game.ball.velocityX === 0 && game.ball.velocityY === 0) return;
+
+            game.ball.x += game.ball.velocityX;
+            game.ball.y += game.ball.velocityY;
+
+            if (game.ball.y + game.ball.radius >= canvas.height || game.ball.y - game.ball.radius <= 0) {
+                game.ball.velocityY = -game.ball.velocityY;
+            }
+
+            if (game.ball.x - game.ball.radius <= game.player.x + game.player.width &&
+                game.ball.x + game.ball.radius >= game.player.x &&
+                game.ball.y + game.ball.radius >= game.player.y &&
+                game.ball.y - game.ball.radius <= game.player.y + game.player.height) {
+                
+                game.ball.velocityX = Math.abs(game.ball.velocityX);
+                const hitPosition = (game.ball.y - (game.player.y + game.player.height / 2)) / (game.player.height / 2);
+                game.ball.velocityY = hitPosition * game.ball.speed * 0.7;
+            }
+
+            if (game.ball.x + game.ball.radius >= game.cpu.x &&
+                game.ball.x - game.ball.radius <= game.cpu.x + game.cpu.width &&
+                game.ball.y + game.ball.radius >= game.cpu.y &&
+                game.ball.y - game.ball.radius <= game.cpu.y + game.cpu.height) {
+                
+                game.ball.velocityX = -Math.abs(game.ball.velocityX);
+                const hitPosition = (game.ball.y - (game.cpu.y + game.cpu.height / 2)) / (game.cpu.height / 2);
+                game.ball.velocityY = hitPosition * game.ball.speed * 0.7;
+            }
+
+            if (game.ball.x < 0) {
+                game.score.cpu++;
+                updateScore();
+                resetBall();
+            }
+
+            if (game.ball.x > canvas.width) {
+                game.score.player++;
+                updateScore();
+                resetBall();
+            }
+        }
+
+        function updatePlayer() {
+            if (keys.up && game.player.y > 0) {
+                game.player.y -= game.player.speed;
+            }
+            if (keys.down && game.player.y + game.player.height < canvas.height) {
+                game.player.y += game.player.speed;
+            }
+        }
+
+        function updateCPU() {
+            const cpuCenter = game.cpu.y + game.cpu.height / 2;
+            const ballY = game.ball.y;
+
+            if (cpuCenter < ballY - 35) {
+                game.cpu.y += game.cpu.speed;
+            } else if (cpuCenter > ballY + 35) {
+                game.cpu.y -= game.cpu.speed;
+            }
+
+            if (game.cpu.y < 0) game.cpu.y = 0;
+            if (game.cpu.y + game.cpu.height > canvas.height) {
+                game.cpu.y = canvas.height - game.cpu.height;
+            }
+        }
+
+        function updateScore() {
+            document.getElementById('playerScore').textContent = game.score.player;
+            document.getElementById('cpuScore').textContent = game.score.cpu;
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            drawNet();
+            drawRect(game.player.x, game.player.y, game.player.width, game.player.height, 'white');
+            drawRect(game.cpu.x, game.cpu.y, game.cpu.width, game.cpu.height, 'white');
+            drawCircle(game.ball.x, game.ball.y, game.ball.radius, 'white');
+        }
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            updatePlayer();
+            updateCPU();
+            updateBall();
+            render();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            gameRunning = true;
+            gameStarted = true;
+            document.getElementById('startBtn').textContent = 'ゲーム中...';
+            document.getElementById('startBtn').disabled = true;
+            resetBall();
+            gameLoop();
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (!gameStarted) return;
+            
+            switch(e.code) {
+                case 'ArrowUp':
+                    e.preventDefault();
+                    keys.up = true;
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    keys.down = true;
+                    break;
+                case 'Space':
+                    e.preventDefault();
+                    serveBall();
+                    break;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            switch(e.code) {
+                case 'ArrowUp':
+                    keys.up = false;
+                    break;
+                case 'ArrowDown':
+                    keys.down = false;
+                    break;
+            }
+        });
+
+        render();
+    </script>
+</body>
+</html>
